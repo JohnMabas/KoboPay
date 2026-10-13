@@ -3,6 +3,8 @@
 // SSL is handled by sslOptions.js — required for Aiven connections.
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { Sequelize } = require('sequelize');
 const config = require('./env');
 const getSsl = require('./sslOptions');
