@@ -1,12 +1,13 @@
 // server.js — application entry point.
-// env.js MUST be the first require so process.env is loaded before any other
-// module reads config values.
+// env.js MUST be the very first require so process.env is loaded and validated
+// before any other module reads config values.
 'use strict';
 
 const config = require('./config/env');
 
 const express = require('express');
 const cors = require('cors');
+const createDatabaseIfMissing = require('./config/createDatabase');
 const { sequelize } = require('./models');
 
 const authRoutes = require('./routes/auth');
@@ -68,25 +69,34 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-// ── Start ─────────────────────────────────────────────────────────────────────
+// ── Startup ───────────────────────────────────────────────────────────────────
 
 async function start() {
   try {
-    // Verify the database is reachable.
+    // Step 1: Create the target database on Aiven if it doesn't exist yet.
+    // This connects to Aiven's "defaultdb" and runs CREATE DATABASE if needed.
+    await createDatabaseIfMissing();
+
+    // Step 2: Verify the target database is reachable with the configured credentials.
     await sequelize.authenticate();
-    console.log('Database connected successfully');
+    console.log('Connected to database');
 
-    // Create tables from models if they don't exist yet.
-    // NOTE: sync() will NOT modify or drop existing columns.
-    // Use Sequelize migrations in production for schema changes.
+    // Step 3: Create tables from Sequelize models if they don't exist yet.
+    // IMPORTANT: never use force:true (drops tables) or alter:true (may corrupt data).
+    // Use Sequelize migrations in production for safe schema changes.
     await sequelize.sync();
-    console.log('Database synced');
 
+    // Step 4: Start the HTTP server.
     app.listen(config.port, () => {
       console.log(`KoboPay API running on port ${config.port}`);
     });
   } catch (err) {
-    console.error('[KoboPay] Failed to start:', err.message);
+    // Print a friendly hint so the developer knows where to look.
+    console.error('\n[KoboPay] Failed to start. Check the following:');
+    console.error('  • DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME in backend/.env');
+    console.error('  • DB_SSL=true and DB_SSL_CA_PATH pointing to backend/certs/ca.pem');
+    console.error('  • The Aiven service is running (free services can be powered off)');
+    console.error('\nError detail:', err.message);
     process.exit(1);
   }
 }

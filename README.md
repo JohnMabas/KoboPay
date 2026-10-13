@@ -1,30 +1,37 @@
 # KoboPay
 
-Simple, secure banking — a beginner-friendly full-stack banking app built with Node.js, Express, PostgreSQL (Sequelize), and Next.js.
+Simple, secure banking — a beginner-friendly full-stack banking app built with Node.js, Express, PostgreSQL (Aiven), Sequelize, and Next.js.
+
+---
+
+## About
+
+KoboPay is a simple, secure banking app. Create an account in seconds and get your own 10-digit account number. Deposit money, set a 4-digit PIN, and send money to anyone by account number. You see the recipient's name before you confirm, and every transaction is recorded in your history.
 
 ---
 
 ## Prerequisites
 
 - Node.js 18+
-- PostgreSQL running locally
 - `npm` or `yarn`
+- An [Aiven](https://aiven.io) account (free tier works)
 
 ---
 
-## 1. Create the Database
+## 1. Create an Aiven PostgreSQL Service
 
-Sequelize creates the tables automatically on first start. You only need an empty database:
+1. Sign in at [console.aiven.io](https://console.aiven.io).
+2. Click **Create service** → choose **PostgreSQL**.
+3. Pick the free plan and a region close to you.
+4. Wait for the service to reach **Running** status.
+5. On the **Overview** tab, copy these values into `backend/.env`:
+   - **Host** → `DB_HOST`
+   - **Port** → `DB_PORT`
+   - **User** → `DB_USER` (usually `avnadmin`)
+   - **Password** → `DB_PASSWORD`
+6. Click **Download CA cert** and save the file as `backend/certs/ca.pem`.
 
-```bash
-createdb kobopay_db
-```
-
-Or using `psql`:
-
-```sql
-CREATE DATABASE kobopay_db;
-```
+> **No need to create a database manually.** The app creates `kobopay_db` automatically on first start.
 
 ---
 
@@ -36,10 +43,16 @@ CREATE DATABASE kobopay_db;
 cp backend/.env.example backend/.env
 ```
 
-Open `backend/.env` and fill in your values:
+Open `backend/.env` and fill in your Aiven values:
 
 ```
-DATABASE_URL=postgres://postgres:yourpassword@localhost:5432/kobopay_db
+DB_HOST=your-service-yourproject.aivencloud.com
+DB_PORT=12345
+DB_USER=avnadmin
+DB_PASSWORD=your_aiven_password
+DB_NAME=kobopay_db
+DB_SSL=true
+DB_SSL_CA_PATH=./certs/ca.pem
 JWT_SECRET=<generate one below>
 ```
 
@@ -57,7 +70,7 @@ cp frontend/.env.example frontend/.env
 
 The defaults work for local development. Edit `NEXT_PUBLIC_APP_NAME` to rename the app (see [Renaming the App](#renaming-the-app)).
 
-> **Important:** Environment variables are loaded at startup. Restart the backend server and run `npm run dev` again for the frontend after changing any value.
+> **Important:** Environment variables are loaded at startup. Restart the backend server and run `npm run dev` again for the frontend after changing any `.env` value.
 
 ---
 
@@ -69,11 +82,12 @@ npm install
 node src/server.js
 ```
 
-The server starts on port `5000` by default. You should see:
+On a successful start you will see:
 
 ```
+Database "kobopay_db" already exists   (or "created" on first run)
+Connected to database
 KoboPay API running on port 5000
-Database connected successfully
 ```
 
 ---
@@ -200,9 +214,31 @@ The app name is read from `NEXT_PUBLIC_APP_NAME` in `frontend/.env`. To rename i
 
 1. Open `frontend/.env`
 2. Change the value: `NEXT_PUBLIC_APP_NAME=MyBank`
-3. Restart `npm run dev` — Next.js inlines `NEXT_PUBLIC_` values at build time, so a restart is required.
+3. Also update the `title` string in `frontend/app/layout.js` to match.
+4. Restart `npm run dev` — Next.js inlines `NEXT_PUBLIC_` values at build time, so a restart is required.
 
-The name propagates to the browser tab title, the header, the login/register headings, and the dashboard footer automatically.
+The name propagates to the browser tab title, the header wordmark, the login/register headings, the dashboard footer, and the About page automatically.
+
+---
+
+## Deploying (Render, Railway, etc.)
+
+- Set all `DB_*` environment variables in the hosting dashboard instead of using a `.env` file.
+- Include `backend/certs/ca.pem` in the repository (it is a public certificate, not a secret).
+- Set `DB_SSL=true` and `DB_SSL_CA_PATH=./certs/ca.pem`.
+- Set `NODE_ENV=production`.
+
+---
+
+## Troubleshooting
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `self-signed certificate in certificate chain` | Wrong or missing CA certificate | Check `DB_SSL_CA_PATH` and make sure `ca.pem` was downloaded from your Aiven service |
+| `password authentication failed` | Wrong `DB_PASSWORD` | Re-copy the password from the Aiven Overview tab |
+| `ENOTFOUND` | Wrong `DB_HOST` | Re-copy the host from the Aiven Overview tab |
+| Connection timeout | Aiven service is off or wrong port | Check that the service is running in the Aiven console; verify `DB_PORT` |
+| `permission denied to create database` | Free plan restriction | Create the database in the Aiven console (Databases tab), then set `DB_NAME` to match |
 
 ---
 
@@ -210,4 +246,4 @@ The name propagates to the browser tab title, the header, the login/register hea
 
 - Sequelize's `sync()` creates tables if they don't exist. It will not modify or drop columns on an existing database.
 - **For production**, use [Sequelize migrations](https://sequelize.org/docs/v6/other-topics/migrations/) instead of `sync()` to manage schema changes safely.
-- Never commit `.env` files. The `.env.example` files are safe to commit (they contain no secrets).
+- Never commit `.env` files. The `.env.example` files and `backend/certs/ca.pem` are safe to commit.
