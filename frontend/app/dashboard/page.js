@@ -7,6 +7,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '../../lib/api';
 import { APP_NAME, CURRENCY_SYMBOL } from '../../lib/config';
+import CopyButton from '../../components/CopyButton';
+import QuickAccess from '../../components/QuickAccess';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -91,6 +93,7 @@ export default function DashboardPage() {
   // ── user / balance state ──────────────────────────────────────────────────
   const [user, setUser] = useState(null);
   const [loadingUser, setLoadingUser] = useState(true);
+  const [balanceHidden, setBalanceHidden] = useState(true);
 
   // ── deposit form state ────────────────────────────────────────────────────
   const [depositAccount, setDepositAccount] = useState('');
@@ -294,9 +297,54 @@ export default function DashboardPage() {
       <div className="bg-emerald-700 text-white rounded-2xl p-6 shadow">
         <p className="text-emerald-200 text-sm">Welcome back</p>
         <h2 className="text-xl font-bold mt-0.5">{user?.full_name}</h2>
-        <p className="text-emerald-300 text-sm mt-1">Account: {user?.account_number}</p>
-        <p className="text-4xl font-extrabold mt-4">{formatAmount(user?.balance ?? 0)}</p>
+        <p className="text-emerald-300 text-sm mt-1 flex items-center gap-1">
+          <span>Account: {user?.account_number}</span>
+          {user?.account_number && (
+            <CopyButton value={user.account_number} label="account number" />
+          )}
+        </p>
+
+        {/* Balance row with hide / show toggle */}
+        <div className="flex items-center gap-3 mt-4">
+          <p className="text-4xl font-extrabold tracking-tight">
+            {balanceHidden ? '••••••' : formatAmount(user?.balance ?? 0)}
+          </p>
+          <button
+            type="button"
+            onClick={() => setBalanceHidden((h) => !h)}
+            aria-label={balanceHidden ? 'Show balance' : 'Hide balance'}
+            title={balanceHidden ? 'Show balance' : 'Hide balance'}
+            className="inline-flex items-center justify-center rounded p-1 text-emerald-200
+                       hover:text-white transition
+                       focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2
+                       focus:ring-offset-emerald-700"
+          >
+            {balanceHidden ? (
+              /* Eye icon — show */
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                aria-hidden="true" className="w-5 h-5">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            ) : (
+              /* Eye-off icon — hide */
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                aria-hidden="true" className="w-5 h-5">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8
+                         a18.45 18.45 0 0 1 5.06-5.94" />
+                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8
+                         a18.5 18.5 0 0 1-2.16 3.19" />
+                <line x1="1" y1="1" x2="23" y2="23" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* ── Quick Access ────────────────────────────────────────────────── */}
+      <QuickAccess />
 
       {/* ── Two-column forms grid (deposit / transfer / pin) ────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -344,7 +392,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Transfer form ─────────────────────────────────────────────── */}
-        <div className="bg-white rounded-2xl shadow p-6">
+        <div id="transfer-section" className="bg-white rounded-2xl shadow p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Transfer</h3>
           <form onSubmit={handleTransfer} className="space-y-3">
             <div>
