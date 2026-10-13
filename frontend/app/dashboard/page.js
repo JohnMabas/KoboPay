@@ -90,6 +90,11 @@ function AccountLookupInput({ value, onChange, onResolve }) {
 export default function DashboardPage() {
   const router = useRouter();
 
+  function handleLogout() {
+    localStorage.removeItem('token');
+    router.push('/login');
+  }
+
   // ── user / balance state ──────────────────────────────────────────────────
   const [user, setUser] = useState(null);
   const [loadingUser, setLoadingUser] = useState(true);
@@ -295,8 +300,18 @@ export default function DashboardPage() {
 
       {/* ── Account summary card ────────────────────────────────────────── */}
       <div className="bg-emerald-700 text-white rounded-2xl p-6 shadow">
-        <p className="text-emerald-200 text-sm">Welcome back</p>
-        <h2 className="text-xl font-bold mt-0.5">{user?.full_name}</h2>
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-emerald-200 text-sm">Welcome back</p>
+            <h2 className="text-xl font-bold mt-0.5">{user?.full_name}</h2>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="bg-white text-emerald-700 text-sm font-semibold px-4 py-1.5 rounded-full hover:bg-emerald-50 transition"
+          >
+            Logout
+          </button>
+        </div>
         <p className="text-emerald-300 text-sm mt-1 flex items-center gap-1">
           <span>Account: {user?.account_number}</span>
           {user?.account_number && (

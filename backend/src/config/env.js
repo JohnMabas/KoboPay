@@ -7,7 +7,9 @@ require('dotenv').config();
 
 // ── Required variables ────────────────────────────────────────────────────────
 // These have no safe defaults; the app cannot start without them.
-const REQUIRED = ['DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'JWT_SECRET'];
+const REQUIRED = [
+  'DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'JWT_SECRET',
+];
 
 const missing = REQUIRED.filter((key) => !process.env[key]);
 if (missing.length > 0) {

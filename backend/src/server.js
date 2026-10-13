@@ -18,7 +18,7 @@ const app = express();
 // ── Middleware ────────────────────────────────────────────────────────────────
 
 // Only allow the configured frontend origin (not a wildcard) to call this API.
-app.use(cors({ origin: config.corsOrigin }));
+app.use(cors({ origin: config.corsOrigin, credentials: true }));
 
 // Parse JSON request bodies.
 app.use(express.json());
@@ -74,7 +74,6 @@ app.use((err, _req, res, _next) => {
 async function start() {
   try {
     // Step 1: Create the target database on Aiven if it doesn't exist yet.
-    // This connects to Aiven's "defaultdb" and runs CREATE DATABASE if needed.
     await createDatabaseIfMissing();
 
     // Step 2: Verify the target database is reachable with the configured credentials.
@@ -82,8 +81,6 @@ async function start() {
     console.log('Connected to database');
 
     // Step 3: Create tables from Sequelize models if they don't exist yet.
-    // IMPORTANT: never use force:true (drops tables) or alter:true (may corrupt data).
-    // Use Sequelize migrations in production for safe schema changes.
     await sequelize.sync();
 
     // Step 4: Start the HTTP server.
@@ -91,7 +88,6 @@ async function start() {
       console.log(`KoboPay API running on port ${config.port}`);
     });
   } catch (err) {
-    // Print a friendly hint so the developer knows where to look.
     console.error('\n[KoboPay] Failed to start. Check the following:');
     console.error('  • DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME in backend/.env');
     console.error('  • DB_SSL=true and DB_SSL_CA_PATH pointing to backend/certs/ca.pem');

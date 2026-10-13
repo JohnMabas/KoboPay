@@ -22,6 +22,9 @@ export default function Header() {
   const isLogin = pathname === '/login';
   const isRegister = pathname === '/register';
 
+  // Hide the navbar on auth pages and dashboard — they have their own layout.
+  if (isLogin || isRegister || isDashboard) return null;
+
   return (
     <header className="bg-emerald-700 text-white shadow-md">
       <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -31,43 +34,13 @@ export default function Header() {
         </Link>
 
         <nav className="flex items-center gap-4 text-sm font-medium">
-          {/* About link is visible on every page */}
+          {/* About link is visible on remaining pages (home, about, etc.) */}
           <Link
             href="/about"
             className="text-emerald-100 hover:text-white transition"
           >
             About
           </Link>
-
-          {/* Dashboard: show Logout button */}
-          {isDashboard && (
-            <button
-              onClick={handleLogout}
-              className="bg-white text-emerald-700 px-4 py-1.5 rounded-full hover:bg-emerald-50 transition"
-            >
-              Logout
-            </button>
-          )}
-
-          {/* Login page: show Register link */}
-          {isLogin && (
-            <Link
-              href="/register"
-              className="bg-white text-emerald-700 px-4 py-1.5 rounded-full hover:bg-emerald-50 transition"
-            >
-              Register
-            </Link>
-          )}
-
-          {/* Register page: show Login link */}
-          {isRegister && (
-            <Link
-              href="/login"
-              className="bg-white text-emerald-700 px-4 py-1.5 rounded-full hover:bg-emerald-50 transition"
-            >
-              Login
-            </Link>
-          )}
         </nav>
       </div>
     </header>

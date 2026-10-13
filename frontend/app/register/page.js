@@ -1,6 +1,6 @@
 'use client';
 
-// app/register/page.js — user registration page.
+// app/register/page.js — single-step registration form.
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -11,6 +11,7 @@ import { APP_NAME } from '../../lib/config';
 export default function RegisterPage() {
   const router = useRouter();
   const [form, setForm] = useState({ full_name: '', email: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -23,11 +24,7 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      await apiFetch('/auth/register', {
-        method: 'POST',
-        body: form,
-      });
-      // Registration succeeded — go to login.
+      await apiFetch('/auth/register', { method: 'POST', body: form });
       router.push('/login?registered=1');
     } catch (err) {
       setError(err.message);
@@ -84,16 +81,25 @@ export default function RegisterPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              name="password"
-              type="password"
-              required
-              minLength={6}
-              value={form.password}
-              onChange={handleChange}
-              placeholder="At least 6 characters"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
+            <div className="relative">
+              <input
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                minLength={6}
+                value={form.password}
+                onChange={handleChange}
+                placeholder="At least 6 characters"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-16"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 hover:text-gray-700"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
           </div>
 
           <button
