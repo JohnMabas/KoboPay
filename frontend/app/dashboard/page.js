@@ -3,7 +3,7 @@
 // app/dashboard/page.js — main authenticated page.
 // Shows balance, deposit, transfer, PIN management, and transaction history.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '../../lib/api';
 import { APP_NAME, CURRENCY_SYMBOL } from '../../lib/config';
@@ -94,6 +94,21 @@ export default function DashboardPage() {
     localStorage.removeItem('token');
     router.push('/login');
   }
+
+  // ── profile dropdown state ────────────────────────────────────────────────
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
+
+  // Close dropdown when clicking outside of it.
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // ── user / balance state ──────────────────────────────────────────────────
   const [user, setUser] = useState(null);
@@ -305,12 +320,55 @@ export default function DashboardPage() {
             <p className="text-emerald-200 text-sm">Welcome back</p>
             <h2 className="text-xl font-bold mt-0.5">{user?.full_name}</h2>
           </div>
-          <button
-            onClick={handleLogout}
-            className="bg-white text-emerald-700 text-sm font-semibold px-4 py-1.5 rounded-full hover:bg-emerald-50 transition"
-          >
-            Logout
-          </button>
+
+          {/* ── Profile avatar + dropdown ──────────────────────────────── */}
+          <div className="relative" ref={profileRef}>
+            <button
+              onClick={() => setProfileOpen((o) => !o)}
+              aria-label="Open profile menu"
+              className="flex items-center justify-center w-10 h-10 rounded-full bg-white/20
+                         hover:bg-white/30 transition focus:outline-none focus:ring-2
+                         focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-700"
+            >
+              {/* Avatar initials */}
+              <span className="text-sm font-bold text-white">
+                {user?.full_name
+                  ? user.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+                  : '?'}
+              </span>
+            </button>
+
+            {/* Dropdown panel */}
+            {profileOpen && (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg ring-1
+                              ring-black/5 z-50 overflow-hidden">
+                {/* User info */}
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <p className="text-sm font-semibold text-gray-800">{user?.full_name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 truncate">
+                    Acct: {user?.account_number}
+                  </p>
+                </div>
+
+                {/* Logout */}
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-red-600
+                             hover:bg-red-50 transition text-left"
+                >
+                  {/* Logout icon */}
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                    strokeLinejoin="round" aria-hidden="true" className="w-4 h-4">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         <p className="text-emerald-300 text-sm mt-1 flex items-center gap-1">
           <span>Account: {user?.account_number}</span>
