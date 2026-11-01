@@ -3,25 +3,27 @@
 // app/login/page.js — login page.
 
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '../../lib/api';
 import { APP_NAME } from '../../lib/config';
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Show a success message after registration redirect.
+  // window.location is read inside the effect so this page needs no Suspense
+  // boundary for useSearchParams during static prerendering.
   useEffect(() => {
-    if (searchParams.get('registered') === '1') {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('registered') === '1') {
       setSuccess('Account created! Please log in.');
     }
-  }, [searchParams]);
+  }, []);
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value });

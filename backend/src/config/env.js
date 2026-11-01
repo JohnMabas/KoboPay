@@ -31,11 +31,38 @@ if (!/^[a-zA-Z0-9_]+$/.test(process.env.DB_NAME)) {
   process.exit(1);
 }
 
+// ── Paystack variables ────────────────────────────────────────────────────────
+// Payments are optional in development so the rest of the API can boot without
+// credentials. In production we fail closed: without a secret key, no payment
+// endpoint should ever be reachable.
+const PAYSTACK_REQUIRED_IN_PRODUCTION = ['PAYSTACK_SECRET_KEY', 'PAYSTACK_CALLBACK_URL'];
+const nodeEnv = process.env.NODE_ENV || 'development';
+const missingPaystack = PAYSTACK_REQUIRED_IN_PRODUCTION.filter((key) => !process.env[key]);
+
+if (nodeEnv === 'production' && missingPaystack.length > 0) {
+  console.error(
+    `[KoboPay] Missing required Paystack environment variable(s): ${missingPaystack.join(', ')}\n` +
+    'Set them in your hosting provider before starting the API.'
+  );
+  process.exit(1);
+}
+
+// Paystack's documented webhook signature is HMAC-SHA512 using the secret key.
+// PAYSTACK_WEBHOOK_SECRET is an optional override for advanced setups where a
+// separate value is configured; when absent the secret key is used.
+const paystackWebhookSecret =
+  process.env.PAYSTACK_WEBHOOK_SECRET || process.env.PAYSTACK_SECRET_KEY || '';
+
+function positiveInt(value, fallback) {
+  const parsed = parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 // ── Build and freeze the config object ───────────────────────────────────────
 // All other backend files import from here. No other file reads process.env.
 const config = Object.freeze({
   port: parseInt(process.env.PORT, 10) || 5000,
-  nodeEnv: process.env.NODE_ENV || 'development',
+  nodeEnv,
 
   // Aiven / PostgreSQL connection — individual vars (no DATABASE_URL)
   dbHost: process.env.DB_HOST,
@@ -55,6 +82,26 @@ const config = Object.freeze({
 
   // CORS — only this origin may call the API
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+
+  // Paystack — secrets are never logged or sent to the frontend.
+  paystackSecretKey: process.env.PAYSTACK_SECRET_KEY || '',
+  paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY || '',
+  paystackCallbackUrl:
+    process.env.PAYSTACK_CALLBACK_URL ||
+    `${process.env.CORS_ORIGIN || 'http://localhost:3000'}/payment/callback`,
+  paystackWebhookSecret,
+  // Overridable for tests and for Paystack-compatible sandboxes.
+  paystackBaseUrl: process.env.PAYSTACK_BASE_URL || 'https://api.paystack.co',
+  paystackTimeoutMs: positiveInt(process.env.PAYSTACK_TIMEOUT_MS, 15000),
+
+  // Deposit limits, expressed in whole naira (fractions are rejected).
+  paymentMinNgn: positiveInt(process.env.PAYMENT_MIN_NGN, 100),
+  paymentMaxNgn: positiveInt(process.env.PAYMENT_MAX_NGN, 1000000),
+
+  // Basic per-user payment endpoint throttling.
+  paymentRateLimitWindowMs: positiveInt(process.env.PAYMENT_RATE_LIMIT_WINDOW_MS, 60000),
+  paymentInitRateLimit: positiveInt(process.env.PAYMENT_INIT_RATE_LIMIT, 10),
+  paymentVerifyRateLimit: positiveInt(process.env.PAYMENT_VERIFY_RATE_LIMIT, 30),
 });
 
 module.exports = config;

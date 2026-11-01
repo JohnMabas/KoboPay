@@ -7,6 +7,7 @@ const sequelize = require('../config/database');
 // Load each model factory and pass the shared sequelize instance.
 const User = require('./User')(sequelize);
 const Transaction = require('./Transaction')(sequelize);
+const Payment = require('./Payment')(sequelize);
 
 // ── Associations ──────────────────────────────────────────────────────────────
 // A User can initiate many transactions (as sender/depositor).
@@ -18,4 +19,13 @@ Transaction.belongsTo(User, { foreignKey: 'senderId', as: 'sender' });
 // Each Transaction belongs to a receiver.
 Transaction.belongsTo(User, { foreignKey: 'receiverId', as: 'receiver' });
 
-module.exports = { sequelize, User, Transaction };
+// A User can have many Paystack payment attempts.
+User.hasMany(Payment, { foreignKey: 'userId', as: 'payments' });
+Payment.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+// One successful payment produces at most one wallet ledger entry. The unique
+// index on transactions.paymentId enforces this at the database level.
+Payment.hasOne(Transaction, { foreignKey: 'paymentId', as: 'ledgerTransaction' });
+Transaction.belongsTo(Payment, { foreignKey: 'paymentId', as: 'payment' });
+
+module.exports = { sequelize, User, Transaction, Payment };

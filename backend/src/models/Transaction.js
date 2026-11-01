@@ -33,12 +33,22 @@ module.exports = (sequelize) => {
         allowNull: false,
         validate: { min: 0.01 },
       },
+      // Links a wallet ledger entry to the payment that caused it. The unique
+      // constraint is the database-level guarantee that one payment can create
+      // at most one ledger entry.
+      paymentId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
     },
     {
       tableName: 'transactions',
       // Only createdAt is needed; no updatedAt on immutable records.
       timestamps: true,
       updatedAt: false,
+      // The unique paymentId index is added by the migration runner. Keeping
+      // it out of the model avoids sync() trying to index the column before
+      // the migration has added it to an existing production transactions table.
       indexes: [
         { fields: ['senderId'] },
         { fields: ['receiverId'] },

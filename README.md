@@ -56,6 +56,20 @@ DB_SSL_CA_PATH=./certs/ca.pem
 JWT_SECRET=<generate one below>
 ```
 
+Add your Paystack configuration (see [Paystack Payments](#paystack-payments) below):
+
+```
+PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxx
+PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxxxxxxx
+PAYSTACK_CALLBACK_URL=http://localhost:3000/payment/callback
+PAYSTACK_WEBHOOK_SECRET=
+```
+
+`PAYSTACK_PUBLIC_KEY` is not used by the redirect checkout flow but is kept for
+future Paystack Inline support. `PAYSTACK_WEBHOOK_SECRET` is optional: Paystack
+signs webhooks with the secret key, so leave it blank unless you intentionally
+use a separate signing value. Never expose the secret key to the frontend.
+
 Generate a strong JWT secret:
 
 ```bash
@@ -87,8 +101,14 @@ On a successful start you will see:
 ```
 Database "kobopay_db" already exists   (or "created" on first run)
 Connected to database
+Applied migration 20261101000000-create-payments-and-ledger-link.js
+Migrations up to date.
 KoboPay API running on port 5000
 ```
+
+To apply or roll back migrations manually (recommended before a production
+deploy), use `npm run migrate`, `npm run migrate:status`, or
+`npm run migrate:undo`. Migrations are additive; they do not drop user data.
 
 ---
 
@@ -167,6 +187,30 @@ curl -X POST http://localhost:5000/api/account/deposit \
   -d '{"account_number":"<10-digit number>","amount":5000}'
 ```
 
+### Start a Paystack wallet deposit
+
+```bash
+curl -X POST http://localhost:5000/api/payments/paystack/initialize \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(node -e "console.log(require('crypto').randomUUID())")" \
+  -d '{"amount":"1000"}'
+```
+
+Response data contains `authorization_url`, `access_code`, and `reference`.
+Redirect the user to `authorization_url`. The wallet is **not** credited at
+this point. Send the same `Idempotency-Key` to safely replay a request.
+
+### Verify a Paystack deposit
+
+```bash
+curl http://localhost:5000/api/payments/paystack/verify/KP_REFERENCE \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+The backend checks the reference belongs to the authenticated user, verifies it
+with Paystack, validates amount/currency, and credits the wallet at most once.
+
 ### Create a PIN
 
 ```bash
@@ -208,6 +252,129 @@ curl "http://localhost:5000/api/account/transactions?page=2&limit=5" \
 
 ---
 
+## Paystack Payments
+
+KoboPay uses Paystack's hosted checkout (redirect flow). Card details are never
+collected or stored by KoboPay.
+
+### Backend endpoints
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `POST` | `/api/payments/paystack/initialize` | Bearer JWT | Create a pending payment and return a Paystack checkout URL |
+| `GET` | `/api/payments/paystack/verify/:reference` | Bearer JWT | Verify with Paystack and credit the wallet once |
+| `POST` | `/api/payments/paystack/webhook` | Paystack signature | Process `charge.success` events |
+
+Initialization accepts `{ "amount": "1000.00" }` in NGN. The amount is converted
+to integer kobo on the server and is checked against `PAYMENT_MIN_NGN` /
+`PAYMENT_MAX_NGN`. The authenticated user always comes from the JWT; a
+client-supplied user ID or status is ignored. An optional `Idempotency-Key`
+header makes retries safe.
+
+### Get Paystack test credentials
+
+1. Sign in at [dashboard.paystack.com](https://dashboard.paystack.com).
+2. Switch the dashboard to **Test mode**.
+3. Open **Settings → API Keys & Webhooks**.
+4. Copy the **Test Secret Key** (`sk_test_...`) into `PAYSTACK_SECRET_KEY`.
+5. Copy the **Test Public Key** (`pk_test_...`) into `PAYSTACK_PUBLIC_KEY`.
+6. Keep test and live keys in separate environments. Never use `sk_live_...`
+   locally or commit either key.
+
+### Configure the callback URL
+
+`PAYSTACK_CALLBACK_URL` is a **frontend** URL, not the backend API URL:
+
+- Local: `http://localhost:3000/payment/callback`
+- Production: `https://<your-frontend-domain>/payment/callback`
+
+Paystack redirects the customer there with `?reference=...&trxref=...`. The
+callback page asks the backend to verify the reference; query parameters alone
+are never treated as proof of payment.
+
+### Configure the webhook URL
+
+In the Paystack Dashboard open **Settings → API Keys & Webhooks → Webhook URL**
+and set:
+
+```
+https://kobopay-production.up.railway.app/api/payments/paystack/webhook
+```
+
+Paystack signs each request with `x-paystack-signature`, an HMAC-SHA512 of the
+exact raw body using your secret key. The backend validates this signature before
+processing anything, then independently verifies `charge.success` with Paystack
+before crediting a wallet. Repeated deliveries are idempotent.
+
+### Configure Railway
+
+In the Railway backend service **Variables**, add (do not commit them):
+
+```
+PAYSTACK_SECRET_KEY=sk_test_or_live_...
+PAYSTACK_PUBLIC_KEY=pk_test_or_live_...
+PAYSTACK_CALLBACK_URL=https://<your-frontend-domain>/payment/callback
+PAYSTACK_WEBHOOK_SECRET=            # optional; leave blank to use the secret key
+CORS_ORIGIN=https://<your-frontend-domain>
+NODE_ENV=production
+```
+
+`NODE_ENV=production` makes the backend refuse to start if
+`PAYSTACK_SECRET_KEY` or `PAYSTACK_CALLBACK_URL` is missing. The frontend needs
+no Paystack key at all.
+
+### Run migrations safely
+
+```bash
+cd backend
+npm run migrate:status     # inspect
+npm run migrate            # apply additive changes
+npm run migrate:undo       # roll back the most recent migration only
+```
+
+The server also applies pending migrations on startup after `sequelize.sync()`.
+That combination adds the `paymentId` ledger column to an existing database
+without dropping or rewriting existing tables.
+
+### Run automated tests
+
+```bash
+cd backend
+npm test
+```
+
+Tests use Node's built-in test runner and mocked Paystack responses. They never
+make real charges.
+
+### Test a deposit in Paystack test mode
+
+1. Use `sk_test_...`/`pk_test_...` keys and restart the backend.
+2. Log in to KoboPay and use **Add money** on the dashboard.
+3. On Paystack checkout use test card `4084 0840 8408 4081`, any future expiry,
+   CVV `408`, and PIN `0000` (or the OTP Paystack shows).
+4. You are redirected to `/payment/callback`; the backend verifies the payment
+   and the wallet is credited exactly once.
+5. In the Paystack Dashboard, the test transaction appears under **Transactions**.
+6. You can resend the webhook from the dashboard to confirm duplicate deliveries
+   do not double-credit the wallet.
+
+### Switch to live mode safely
+
+1. Complete test-mode testing and confirm wallet credits/ledger entries.
+2. In Paystack, complete any required business/KYC activation and switch the
+   dashboard to **Live mode**.
+3. Copy the live secret/public keys into the Railway **production** environment
+   only. Keep test keys in staging/local.
+4. Update `PAYSTACK_CALLBACK_URL` to the production frontend URL and update the
+   live-mode Paystack webhook URL.
+5. Deploy, then make a small real deposit and confirm the credit and ledger row
+   before announcing availability.
+
+> Never log or expose `PAYSTACK_SECRET_KEY` or `PAYSTACK_WEBHOOK_SECRET`, and
+> never put either in a `NEXT_PUBLIC_` variable.
+
+---
+
 ## Renaming the App
 
 The app name is read from `NEXT_PUBLIC_APP_NAME` in `frontend/.env`. To rename it:
@@ -227,6 +394,11 @@ The name propagates to the browser tab title, the header wordmark, the login/reg
 - Include `backend/certs/ca.pem` in the repository (it is a public certificate, not a secret).
 - Set `DB_SSL=true` and `DB_SSL_CA_PATH=./certs/ca.pem`.
 - Set `NODE_ENV=production`.
+- Set the `PAYSTACK_*` variables and `CORS_ORIGIN` to your deployed frontend.
+- Run `npm run migrate` (or let startup apply pending migrations) before
+  enabling the payment endpoints. The migration is additive.
+- In the Paystack Dashboard, set the webhook URL to
+  `https://kobopay-production.up.railway.app/api/payments/paystack/webhook`.
 
 ---
 

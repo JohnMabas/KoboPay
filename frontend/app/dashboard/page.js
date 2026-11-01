@@ -122,6 +122,11 @@ export default function DashboardPage() {
   const [depositMsg, setDepositMsg] = useState({ type: '', text: '' });
   const [depositLoading, setDepositLoading] = useState(false);
 
+  // ── Paystack wallet funding state ─────────────────────────────────────────
+  const [fundAmount, setFundAmount] = useState('');
+  const [fundMsg, setFundMsg] = useState({ type: '', text: '' });
+  const [fundLoading, setFundLoading] = useState(false);
+
   // ── transfer form state ───────────────────────────────────────────────────
   const [transferAccount, setTransferAccount] = useState('');
   const [transferResolvedName, setTransferResolvedName] = useState('');
@@ -210,6 +215,57 @@ export default function DashboardPage() {
       setDepositMsg({ type: 'error', text: err.message });
     } finally {
       setDepositLoading(false);
+    }
+  }
+
+  // ── Paystack funding handler ──────────────────────────────────────────────
+  // Initializes the payment on the backend, then redirects to Paystack's
+  // hosted checkout. The wallet is never updated here — only the backend can
+  // credit it after verifying with Paystack.
+  async function handleFundWallet(e) {
+    e.preventDefault();
+    if (fundLoading) return;
+
+    setFundMsg({ type: '', text: '' });
+
+    const amount = Number(fundAmount);
+    if (!Number.isFinite(amount) || amount < 100) {
+      setFundMsg({ type: 'error', text: 'Enter at least ₦100.' });
+      return;
+    }
+    if (!/^\d+(\.\d{1,2})?$/.test(String(fundAmount).trim())) {
+      setFundMsg({ type: 'error', text: 'Amount can have at most 2 decimal places.' });
+      return;
+    }
+
+    setFundLoading(true);
+    try {
+      const idempotencyKey =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+      const res = await apiFetch('/payments/paystack/initialize', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': idempotencyKey },
+        body: { amount: fundAmount },
+      });
+
+      if (!res.data?.authorization_url) {
+        throw new Error('Paystack did not return a checkout URL. Please try again.');
+      }
+
+      // Remember the reference so the callback page can also recover it if the
+      // browser drops the query string.
+      if (res.data.reference) {
+        localStorage.setItem('kobopay_pending_payment', res.data.reference);
+      }
+
+      setFundMsg({ type: 'pending', text: 'Redirecting to Paystack…' });
+      window.location.assign(res.data.authorization_url);
+    } catch (err) {
+      setFundMsg({ type: 'error', text: err.message });
+      setFundLoading(false);
     }
   }
 
@@ -421,6 +477,53 @@ export default function DashboardPage() {
 
       {/* ── Two-column forms grid (deposit / transfer / pin) ────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {/* ── Fund wallet with Paystack ───────────────────────────────── */}
+        <div className="bg-white rounded-2xl shadow p-6 md:col-span-2">
+          <h3 className="text-lg font-semibold text-gray-800 mb-1">Add money</h3>
+          <p className="text-sm text-gray-500 mb-4">
+            Fund your KoboPay wallet securely with Paystack. You&apos;ll be redirected to
+            Paystack&apos;s checkout to complete the payment.
+          </p>
+          <form onSubmit={handleFundWallet} className="space-y-3 max-w-sm">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Amount (NGN)
+              </label>
+              <input
+                type="number"
+                min="100"
+                step="0.01"
+                required
+                value={fundAmount}
+                onChange={(e) => setFundAmount(e.target.value)}
+                placeholder="1000.00"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">Minimum ₦100.</p>
+            </div>
+            {fundMsg.text && (
+              <p
+                className={`text-sm ${
+                  fundMsg.type === 'error'
+                    ? 'text-red-500'
+                    : fundMsg.type === 'pending'
+                    ? 'text-emerald-600'
+                    : 'text-emerald-600'
+                }`}
+              >
+                {fundMsg.text}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={fundLoading || !fundAmount}
+              className="w-full bg-emerald-700 text-white py-2 rounded-lg font-semibold hover:bg-emerald-800 transition disabled:opacity-50"
+            >
+              {fundLoading ? 'Starting payment…' : 'Continue to Paystack'}
+            </button>
+          </form>
+        </div>
 
         {/* ── Deposit form ─────────────────────────────────────────────── */}
         <div className="bg-white rounded-2xl shadow p-6">
