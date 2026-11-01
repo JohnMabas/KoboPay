@@ -1,7 +1,12 @@
 // server.js — application entry point.
 // env.js MUST be the very first require so process.env is loaded and validated
 // before any other module reads config values.
+// 'use strict';
+
 'use strict';
+
+const net = require('net');
+net.setDefaultAutoSelectFamilyAttemptTimeout(5000);
 
 const config = require('./config/env');
 
