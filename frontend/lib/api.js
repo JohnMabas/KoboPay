@@ -2,7 +2,7 @@
 // Reads API_URL from config.js (never hardcoded).
 // Attaches the JWT from localStorage on authenticated calls.
 
-import { API_URL } from './config';
+import { API_URL } from "./config";
 
 /**
  * Make an authenticated or unauthenticated API call.
@@ -12,12 +12,13 @@ import { API_URL } from './config';
  * @returns {Promise<object>} Parsed JSON body
  */
 export async function apiFetch(path, options = {}) {
-  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  const headers = { "Content-Type": "application/json", ...options.headers };
 
   // Attach the JWT if one is stored (may be null on unauthenticated routes).
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
   const res = await fetch(`${API_URL}${path}`, {

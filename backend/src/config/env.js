@@ -81,7 +81,8 @@ const config = Object.freeze({
   saltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 10,
 
   // CORS — only this origin may call the API
-  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  corsOrigin: process.env.FRONTEND_URL || 'http://localhost:3000',
+
 
   // Paystack — secrets are never logged or sent to the frontend.
   paystackSecretKey: process.env.PAYSTACK_SECRET_KEY || '',
